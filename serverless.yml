@@ -1,0 +1,68 @@
+service: video-app
+
+frameworkVersion: ">=1.60.0 <2.0.0"
+provider:
+  name: aws
+  runtime: python3.8
+  stage: ${opt:stage,'dev'}
+  region: us-east-1
+  iamManagedPolicies:
+    - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+#  iamRoleStatements:
+#    - Effect: "Allow"
+#      Action:
+#        - "s3:ListBucket"
+#        - "s3:PutObject"
+#      Resource: "arn:aws:s3:::videos/*"
+package:
+  individually: true
+
+functions:
+  posts:
+    handler: post/post.create
+    layers:
+      -  {Ref: PythonRequirementsLambdaLayer}
+    package:
+      exclude:
+        - "**"
+      include:
+        - "./post/**"
+        - "./sls_util/__init__.py"
+        - "./sls_util/rds_config.py"
+    events:
+      - http:
+          path: post/create
+          method: get
+  hello:
+    handler: user/handler.hello
+    layers:
+      -  {Ref: PythonRequirementsLambdaLayer}
+    package:
+      exclude:
+        - "**"
+      include:
+        - "./user/**"
+    events:
+      - http:
+          path: users/create
+          method: get
+plugins:
+  - serverless-python-requirements
+  - serverless-plugin-scripts
+#  - serverless-domain-manager
+custom:
+
+  scripts: # Using `serverless-plugin-scripts` for unittest
+    commands:
+      apply_ut: "python3 -m unittest -v -b"
+    hooks:
+      'deploy:createDeploymentArtifacts': "python3 -m unittest -v -b"
+
+  pythonRequirements:
+    invalidateCaches: true
+    fileName: requirements-${opt:stage, self:provider.stage}.txt
+    layer:
+      name: video-app-${self:provider.stage}-layer
+      description: Requirements lambda layer for python
+      compatibleRuntimes:
+        - python3.7
